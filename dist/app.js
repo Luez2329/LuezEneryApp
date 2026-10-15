@@ -160,11 +160,50 @@ const selectedTariff=()=>$('dataTariff').value;
 function activeTarget(tariff){return tariff==='MT3'?num('targetFactor'):tariff==='BT3'?num('bt3Target'):num('curveTarget')||.45}
 function syncCurveTarget(){const tariff=selectedTariff();if(tariff==='MT3')$('curveTarget').value=num('targetFactor');if(tariff==='BT3')$('curveTarget').value=num('bt3Target')}
 
+const receiptNumber=value=>{const parsed=Number(String(value??'').replace(/\s/g,'').replace(/,/g,''));return Number.isFinite(parsed)?parsed:null};
+const firstMatch=(text,pattern)=>{const match=text.match(pattern);return match?match[1]:null};
+function receiptPeriod(value){
+ const raw=String(value||'').trim(),compact=raw.match(/(20\d{2})(0[1-9]|1[0-2])/);if(compact)return `${compact[1]}-${compact[2]}`;
+ const months={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',setiembre:'09',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'},match=raw.toLowerCase().match(/([a-záéíóú]+)[-\s]+(20\d{2})/);return match&&months[match[1]]?`${match[2]}-${months[match[1]]}`:'';
+}
+async function extractPdfText(file){
+ const pdfjs=await import('./vendor/pdf.min.mjs');pdfjs.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdf.worker.min.mjs',document.baseURI).href;
+ const pdf=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;let text='';
+ for(let pageNumber=1;pageNumber<=pdf.numPages;pageNumber++){const page=await pdf.getPage(pageNumber),content=await page.getTextContent();text+=content.items.map(item=>item.str+(item.hasEOL?'\n':' ')).join('')+'\n'}return text;
+}
+function parseDemandFromConsumption(text){const line=firstMatch(text,/ConsumoTotal\s+([^\n]+)/i);if(!line)return null;const values=(line.match(/[\d,.]+/g)||[]).map(receiptNumber).filter(Number.isFinite);return values.length>=4?Math.max(values[2],values[3]):null}
+function parseBilledLine(text,label){const pattern=new RegExp(label+'[^\\n]*?([\\d,.]+)\\s+kW\\.?h\\s+([\\d,.]+)','i'),match=text.match(pattern);return match?{energy:receiptNumber(match[1]),rate:receiptNumber(match[2])}:null}
+function parseReceipt(text,fileName){
+ const tariff=(firstMatch(text,/(?:Opcion\s+Tarifaria|TARIFA)\s+(MT3|BT3|BT5B)/i)||'').toUpperCase();if(!tariff)throw new Error('No se pudo identificar la tarifa MT3, BT3 o BT5B.');
+ const site=fileName.replace(/\.[^.]+$/,'').replace(/^\d+_[A-Z]{2}_/i,'').replace(/_/g,' '),periodText=firstMatch(text,/MES\s+FACTURADO\s*:?[\s]*([A-Za-zÁÉÍÓÚáéíóú]+-20\d{2}|20\d{4})/i),period=receiptPeriod(periodText);
+ const total=receiptNumber(firstMatch(text,/(?:TOTAL\s+A\s+PAGAR\s+S\/\s*:|TOTAL\s+MES|TOTAL\s+S\/\.?)\s*\**\s*([\d,.]+)/i)),fixed=receiptNumber(firstMatch(text,/CARGO\s+FIJO\s+([\d,.]+)/i));
+ if(tariff==='BT5B')return {tariff,site,period,total,fixed,energy:receiptNumber(firstMatch(text,/CONSUMO\s+FACTURADO\s+([\d,.]+)\s*kWh/i)),rate:receiptNumber(firstMatch(text,/COSTO\s+DE\s+kW\.h\s+ES:\s*S\/\s*([\d,.]+)/i))};
+ const billedHP=parseBilledLine(text,'ENERGIA\\s+HORA\\s+PUNTA'),billedHFP=parseBilledLine(text,'ENERGIA\\s+HORA\\s+FUERA\\s+PUNTA');
+ const energyHP=receiptNumber(firstMatch(text,/Energia\s+Hora\s+Punta\s+([\d,.]+)\s*KWH/i))??billedHP?.energy;
+ const hours=receiptNumber(firstMatch(text,/(?:Horas\s+Hora\s+Punta\s+del\s+mes|N\S*\s*Horas\s+Punta)\s+([\d,.]+)/i));
+ const demand=receiptNumber(firstMatch(text,/Maxima\s+Demanda\s+del\s+Mes\s+([\d,.]+)\s*KW/i))??parseDemandFromConsumption(text);
+ const statedFactor=receiptNumber(firstMatch(text,/(?:Grado\s+de\s+Utilizaci\S*|Calificacion)\s+([\d,.]+)/i));
+ return {tariff,site,period,total,fixed,energyHP,energyHFP:billedHFP?.energy,hours,demand,statedFactor,rateHP:billedHP?.rate,rateHFP:billedHFP?.rate};
+}
+function activateTariff(tariff){const button=[...document.querySelectorAll('.tariff-tab')].find(item=>item.textContent.trim()===tariff);if(button)button.click()}
+function applyReceiptData(data){
+ activateTariff(data.tariff);
+ if(data.tariff==='MT3'){
+  if(data.site)$('siteName').value=data.site;if(data.period)$('period').value=data.period;if(data.energyHP!=null)$('energyHP').value=data.energyHP;if(data.demand!=null){$('maxDemand').value=data.demand;$('generationDemand').value=data.demand}if(data.hours!=null){$('hoursElapsed').value=data.hours;$('hoursMonth').value=data.hours;$('daysRemaining').value=0}if(data.rateHP!=null)$('rateHP').value=data.rateHP;if(data.rateHFP!=null)$('rateHFP').value=data.rateHFP;localStorage.setItem('fc-settings',JSON.stringify(getData()));render();
+ }else if(data.tariff==='BT3'){
+  if(data.site)$('bt3Site').value=data.site;if(data.period)$('bt3Period').value=data.period;if(data.energyHP!=null)$('bt3EnergyHP').value=data.energyHP;if(data.demand!=null)$('bt3Demand').value=data.demand;if(data.hours!=null){$('bt3HoursElapsed').value=data.hours;$('bt3HoursMonth').value=data.hours;$('bt3DaysRemaining').value=0}localStorage.setItem('bt3-settings',JSON.stringify(values(bt3Ids)));renderBT3();
+ }else{
+  if(data.site)$('bt5Site').value=data.site;if(data.period)$('bt5Period').value=data.period;if(data.energy!=null)$('bt5Energy').value=data.energy;if(data.rate!=null)$('bt5Rate').value=data.rate;if(data.fixed!=null)$('bt5Fixed').value=data.fixed;
+  if(data.period){const [year,month]=data.period.split('-').map(Number),days=new Date(year,month,0).getDate();$('bt5DaysElapsed').value=days;$('bt5DaysMonth').value=days}if(data.total!=null&&data.energy!=null&&data.rate!=null){$('bt5Other').value=Math.max(0,data.total/1.18-(data.fixed||0)-data.energy*data.rate).toFixed(2)}localStorage.setItem('bt5-settings',JSON.stringify(values(bt5Ids)));renderBT5();
+ }
+ syncCurveTarget();return [data.tariff,data.site,data.period,data.energyHP??data.energy,data.demand,data.hours].filter(v=>v!==null&&v!=='').join(' · ');
+}
+
 async function saveReceipts(files){
  const tariff=selectedTariff(),valid=[...files].filter(file=>file.size<=10*1024*1024&&['application/pdf','image/jpeg','image/png'].includes(file.type));
  if(!valid.length){$('uploadMessage').textContent='No se encontraron archivos válidos o alguno supera 10 MB.';return}
- for(const file of valid)await dbAction('receipts','readwrite',store=>store.add({tariff,name:file.name,type:file.type,size:file.size,createdAt:new Date().toISOString(),blob:file}));
- $('uploadMessage').textContent=`${valid.length} recibo(s) guardado(s) para ${tariff}.`;await renderReceipts();$('receiptFiles').value='';
+ let processed='';for(const file of valid){let detectedTariff=tariff;if(file.type==='application/pdf'){try{const data=parseReceipt(await extractPdfText(file),file.name);detectedTariff=data.tariff;processed=applyReceiptData(data)}catch(error){processed=`Guardado sin actualización automática: ${error.message}`}}await dbAction('receipts','readwrite',store=>store.add({tariff:detectedTariff,name:file.name,type:file.type,size:file.size,createdAt:new Date().toISOString(),blob:file}))}
+ $('uploadMessage').textContent=processed?`Recibo procesado: ${processed}`:`${valid.length} archivo(s) guardado(s). Para actualización automática utilice PDF con texto.`;await renderReceipts();$('receiptFiles').value='';
 }
 async function renderReceipts(){
  const tariff=selectedTariff(),all=await dbAction('receipts','readonly',store=>store.getAll()),items=all.filter(item=>item.tariff===tariff);
