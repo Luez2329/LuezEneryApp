@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Monitoreo y control mensual del factor de calificación tarifaria MT3">
+  <title>Control de Factor MT3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">FC</span>
+      <div><strong>Control de Factor MT3</strong><small>Monitoreo mensual de energía en punta</small></div>
+    </div>
+    <button id="resetBtn" class="ghost-btn" type="button">Restaurar Combapata</button>
+  </header>
+
+  <main>
+    <section class="hero-grid">
+      <div class="intro">
+        <p class="eyebrow">Suministro monitoreado</p>
+        <div class="site-line">
+          <div>
+            <h1 id="siteNameDisplay">Combapata</h1>
+            <p id="periodDisplay">Control operativo mensual</p>
+          </div>
+          <span id="statusPill" class="status-pill">Calculando</span>
+        </div>
+        <p class="lead">Anticipa el cierre mensual y recibe acciones concretas para mantener el factor por debajo de la meta.</p>
+      </div>
+
+      <article class="factor-card">
+        <div class="factor-head"><span>Factor proyectado</span><span id="trendText">—</span></div>
+        <div class="factor-value"><span id="projectedFactor">0,00</span><small>/ <span id="targetFactorLabel">0,45</span></small></div>
+        <div class="gauge" aria-label="Indicador del factor de calificación"><div id="gaugeFill"></div><i id="targetMarker"></i></div>
+        <div class="gauge-scale"><span>0,00</span><span>Meta</span><span>0,50</span><span>1,00</span></div>
+      </article>
+    </section>
+
+    <section class="metric-grid" aria-label="Indicadores principales">
+      <article class="metric"><span>Energía HP acumulada</span><strong id="energyNow">0,00 kWh</strong><small id="energyLimitText">Límite proyectado: —</small></article>
+      <article class="metric"><span>Margen disponible</span><strong id="energyMargin">0,00 kWh</strong><small id="marginDays">—</small></article>
+      <article class="metric"><span>Descarga diaria requerida</span><strong id="dailyReduction">0,00 kWh</strong><small>Entre 18:00 y 23:00</small></article>
+      <article class="metric"><span>Ahorro mensual estimado</span><strong id="monthlySavings">S/ 0,00</strong><small id="savingsMode">Con cambio de calificación</small></article>
+    </section>
+
+    <section class="workspace-grid">
+      <article class="panel inputs-panel">
+        <div class="panel-title"><div><p class="eyebrow">Datos de control</p><h2>Lectura del mes</h2></div><button id="saveBtn" class="primary-btn" type="button">Guardar datos</button></div>
+        <form id="controlForm">
+          <div class="field-grid">
+            <label>Estación<input id="siteName" type="text" value="Combapata"></label>
+            <label>Periodo<input id="period" type="month"></label>
+            <label>Energía HP acumulada (kWh)<input id="energyHP" type="number" min="0" step="0.01" value="356.91"></label>
+            <label>Máxima demanda (kW)<input id="maxDemand" type="number" min="0.01" step="0.01" value="3.48"></label>
+            <label>Horas punta transcurridas<input id="hoursElapsed" type="number" min="1" step="1" value="125"></label>
+            <label>Horas punta del mes<input id="hoursMonth" type="number" min="1" step="1" value="125"></label>
+            <label>Días punta restantes<input id="daysRemaining" type="number" min="0" step="1" value="0"></label>
+            <label>Meta del factor<input id="targetFactor" type="number" min="0.01" max="0.49" step="0.01" value="0.45"></label>
+          </div>
+          <details>
+            <summary>Parámetros económicos y energéticos</summary>
+            <div class="field-grid details-grid">
+              <label>Tarifa energía HP (S/kWh)<input id="rateHP" type="number" min="0" step="0.0001" value="0.3373"></label>
+              <label>Tarifa energía HFP (S/kWh)<input id="rateHFP" type="number" min="0" step="0.0001" value="0.2831"></label>
+              <label>Potencia generación (kW)<input id="generationDemand" type="number" min="0" step="0.01" value="3.48"></label>
+              <label>Potencia distribución (kW)<input id="distributionDemand" type="number" min="0" step="0.01" value="4.26"></label>
+              <label>Cargo generación punta<input id="genPeakRate" type="number" min="0" step="0.01" value="61.06"></label>
+              <label>Cargo generación fuera punta<input id="genOffPeakRate" type="number" min="0" step="0.01" value="38.95"></label>
+              <label>Cargo distribución punta<input id="distPeakRate" type="number" min="0" step="0.01" value="26.01"></label>
+              <label>Cargo distribución fuera punta<input id="distOffPeakRate" type="number" min="0" step="0.01" value="25.85"></label>
+              <label>Eficiencia batería<input id="batteryEfficiency" type="number" min="0.5" max="1" step="0.01" value="0.95"></label>
+              <label><span>Fuente de carga</span><select id="chargeSource"><option value="solar">Solar fotovoltaica</option><option value="grid">Red fuera de punta</option></select></label>
+            </div>
+          </details>
+        </form>
+      </article>
+
+      <aside class="panel action-panel">
+        <div class="panel-title"><div><p class="eyebrow">Motor de recomendaciones</p><h2>Acciones del día</h2></div><span id="actionCount" class="counter">0</span></div>
+        <div id="actionsList" class="actions-list" aria-live="polite"></div>
+      </aside>
+    </section>
+
+    <section class="panel forecast-panel">
+      <div class="panel-title"><div><p class="eyebrow">Proyección</p><h2>Trayectoria al cierre</h2></div><span class="formula">FC = EHP ÷ (NHP × MD)</span></div>
+      <div class="forecast-grid">
+        <div class="chart-wrap">
+          <svg id="forecastChart" viewBox="0 0 760 230" role="img" aria-label="Proyección del factor de calificación"></svg>
+        </div>
+        <div class="scenario-table-wrap">
+          <table>
+            <thead><tr><th>Escenario</th><th>Factor</th><th>Energía HP</th><th>Estado</th></tr></thead>
+            <tbody id="scenarioRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel log-panel">
+      <div class="panel-title"><div><p class="eyebrow">Seguimiento</p><h2>Historial guardado</h2></div><button id="clearHistoryBtn" class="text-btn" type="button">Limpiar historial</button></div>
+      <div class="history-wrap"><table><thead><tr><th>Fecha</th><th>Periodo</th><th>Energía HP</th><th>Demanda</th><th>Factor proyectado</th><th>Estado</th></tr></thead><tbody id="historyRows"></tbody></table></div>
+    </section>
+  </main>
+
+  <footer><span>Herramienta de apoyo operativo</span><span>Validar los resultados con el medidor y el recibo de la distribuidora.</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
