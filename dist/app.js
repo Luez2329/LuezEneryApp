@@ -173,13 +173,28 @@ async function renderReceipts(){
 async function openReceipt(id){const item=await dbAction('receipts','readonly',store=>store.get(Number(id)));if(!item)return;const url=URL.createObjectURL(item.blob),link=document.createElement('a');link.href=url;link.target='_blank';link.download=item.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 async function deleteReceipt(id){await dbAction('receipts','readwrite',store=>store.delete(Number(id)));await renderReceipts();$('uploadMessage').textContent='Recibo eliminado del almacenamiento local.'}
 
+const cleanCell=value=>String(value??'').trim().replace(/^"|"$/g,'');
+function cellDate(value){if(value instanceof Date)return value;const text=cleanCell(value),iso=text.match(/^\d{4}-\d{2}-\d{2}/)?text.replace(' ','T'):text;return new Date(iso)}
+function matrixToCurve(rows){
+ const headerRow=rows.findIndex(row=>{const cells=row.map(v=>cleanCell(v).toLowerCase());return cells.some(v=>/start\s*time|fecha[_\s-]*hora|timestamp|date.*time/.test(v))&&cells.some(v=>/energy\s*consumption\s*per\s*hour|kwh|energ/.test(v))});
+ if(headerRow<0)throw new Error('No se encontró una tabla con Start Time y Energy Consumption per Hour (kWh).');
+ const headers=rows[headerRow].map(v=>cleanCell(v).toLowerCase()),dateIndex=headers.findIndex(v=>/start\s*time|fecha[_\s-]*hora|timestamp|date.*time/.test(v));
+ let energyIndex=headers.findIndex(v=>/energy\s*consumption\s*per\s*hour/.test(v));if(energyIndex<0)energyIndex=headers.findIndex(v=>/kwh|energ/.test(v)&&!/total|acumul/.test(v));
+ if(dateIndex<0||energyIndex<0)throw new Error('No se identificaron las columnas de fecha y consumo horario.');
+ const points=rows.slice(headerRow+1).map(row=>{const date=cellDate(row[dateIndex]),raw=cleanCell(row[energyIndex]).replace(',','.'),value=Number(raw);return {date,value}}).filter(p=>!Number.isNaN(p.date.getTime())&&Number.isFinite(p.value)&&p.value>=0).sort((a,b)=>a.date-b.date);
+ if(points.length<2)throw new Error('Se requieren al menos dos registros válidos.');return points;
+}
 function parseCurve(text){
  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(line=>line.trim());if(lines.length<2)throw new Error('El CSV no contiene datos.');
- const delimiter=(lines[0].match(/;/g)||[]).length>=(lines[0].match(/,/g)||[]).length?';':',';
- const headers=lines[0].split(delimiter).map(v=>v.trim().toLowerCase()),dateIndex=headers.findIndex(v=>/fecha|hora|timestamp|date/.test(v)),energyIndex=headers.findIndex(v=>/kwh|energ/.test(v));
- if(dateIndex<0||energyIndex<0)throw new Error('Use encabezados fecha_hora y kWh.');
- const points=lines.slice(1).map(line=>{const cols=line.split(delimiter),rawDate=(cols[dateIndex]||'').trim(),rawValue=(cols[energyIndex]||'').trim().replace(',','.');const date=new Date(rawDate.replace(' ','T')),value=Number(rawValue);return {date,value}}).filter(p=>!Number.isNaN(p.date.getTime())&&Number.isFinite(p.value)&&p.value>=0).sort((a,b)=>a.date-b.date);
- if(points.length<2)throw new Error('Se requieren al menos dos registros válidos.');return points;
+ const sample=lines.slice(0,12).join('\n'),counts={';':(sample.match(/;/g)||[]).length,',':(sample.match(/,/g)||[]).length,'\t':(sample.match(/\t/g)||[]).length},delimiter=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+ return matrixToCurve(lines.map(line=>line.split(delimiter)));
+}
+async function parseCurveFile(file){
+ if(/\.xlsx?$/i.test(file.name)||/\.xls$/i.test(file.name)){
+  if(typeof XLSX==='undefined')throw new Error('No se pudo cargar el lector de Excel. Compruebe la conexión e inténtelo nuevamente.');
+  const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true}),sheet=workbook.Sheets[workbook.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:'',dateNF:'yyyy-mm-dd hh:mm:ss'});return matrixToCurve(rows);
+ }
+ return parseCurve(await file.text());
 }
 function inferInterval(points){const gaps=[];for(let i=1;i<Math.min(points.length,200);i++){const gap=(points[i].date-points[i-1].date)/60000;if(gap>0&&gap<=1440)gaps.push(gap)}return gaps.length?gaps.sort((a,b)=>a-b)[Math.floor(gaps.length/2)]:num('curveInterval')}
 function summarizeCurve(){
@@ -189,7 +204,7 @@ function summarizeCurve(){
  return {interval,total,peakEnergy,peakHours,demand,fc,target,status:stateFor(fc,target),points:curveData.length};
 }
 function drawACChart(){
- const svg=$('acCurveChart'),W=1000,H=300,p=44;if(!curveData.length){svg.innerHTML='<text x="500" y="150" text-anchor="middle" fill="#65736f">Cargue una curva CSV para visualizar el suministro</text>';return}
+ const svg=$('acCurveChart'),W=1000,H=300,p=44;if(!curveData.length){svg.innerHTML='<text x="500" y="150" text-anchor="middle" fill="#65736f">Cargue una curva Excel o CSV para visualizar el suministro</text>';return}
  const step=Math.max(1,Math.ceil(curveData.length/500)),data=curveData.filter((_,i)=>i%step===0||i===curveData.length-1),max=Math.max(...data.map(v=>v.value),.01),x=i=>p+i*(W-2*p)/Math.max(1,data.length-1),y=v=>H-p-v/max*(H-2*p),path=data.map((v,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(v.value).toFixed(1)}`).join(' ');
  svg.innerHTML=`<line x1="${p}" y1="${H-p}" x2="${W-p}" y2="${H-p}" stroke="#cfdad5"/><line x1="${p}" y1="${p}" x2="${p}" y2="${H-p}" stroke="#cfdad5"/><path d="${path}" fill="none" stroke="#0f766e" stroke-width="3"/><path d="${path} L ${W-p} ${H-p} L ${p} ${H-p} Z" fill="rgba(57,168,142,.10)"/><text x="4" y="${p+4}" fill="#65736f" font-size="12">${nf(max)} kWh</text><text x="${p}" y="${H-10}" fill="#65736f" font-size="12">${data[0].date.toLocaleString('es-PE')}</text><text x="${W-p}" y="${H-10}" text-anchor="end" fill="#65736f" font-size="12">${data[data.length-1].date.toLocaleString('es-PE')}</text>`;
 }
@@ -200,7 +215,7 @@ function renderCurve(){
  const ok=r.fc<=r.target,box=$('curveValidation');box.className=`curve-validation ${ok?'good':r.status.cls}`;box.innerHTML=`<span class="status-pill ${ok?'good':r.status.cls}">${ok?'Objetivo validado':'Requiere acción'}</span><h3>${ok?'La curva cumple la meta':'El factor supera la meta'}</h3><p>${referential?'En BT5B este factor es un indicador operativo y no determina la facturación. ':''}${ok?`Existe un margen de ${nf(r.target-r.fc)}.`:`Reduzca energía en punta o aumente el desplazamiento de carga. Diferencia: ${nf(r.fc-r.target)}.`}</p>`;
 }
 async function loadCurve(){const record=await dbAction('curves','readonly',store=>store.get(selectedTariff()));curveData=(record?.points||[]).map(p=>({date:new Date(p.date),value:p.value}));if(record?.target)$('curveTarget').value=record.target;renderCurve()}
-async function importCurve(file){try{curveData=parseCurve(await file.text());const interval=inferInterval(curveData);$('curveInterval').value=nf(interval,0);const points=curveData.map(p=>({date:p.date.toISOString(),value:p.value}));await dbAction('curves','readwrite',store=>store.put({tariff:selectedTariff(),name:file.name,target:num('curveTarget'),points,updatedAt:new Date().toISOString()}));$('uploadMessage').textContent=`Curva ${file.name} cargada: ${points.length} intervalos.`;renderCurve()}catch(error){$('uploadMessage').textContent=error.message}finally{$('curveFile').value=''}}
+async function importCurve(file){try{curveData=await parseCurveFile(file);const interval=inferInterval(curveData);$('curveInterval').value=nf(interval,0);const points=curveData.map(p=>({date:p.date.toISOString(),value:p.value}));await dbAction('curves','readwrite',store=>store.put({tariff:selectedTariff(),name:file.name,target:num('curveTarget'),points,updatedAt:new Date().toISOString()}));$('uploadMessage').textContent=`Curva ${file.name} cargada: ${points.length} intervalos de ${nf(interval,0)} minutos.`;renderCurve()}catch(error){$('uploadMessage').textContent=error.message}finally{$('curveFile').value=''}}
 function applyCurve(){if(!curveSummary)return;const r=curveSummary,tariff=selectedTariff();if(tariff==='MT3'){$('energyHP').value=r.peakEnergy;$('maxDemand').value=r.demand;$('hoursElapsed').value=r.peakHours;$('targetFactor').value=r.target;render()}else if(tariff==='BT3'){$('bt3EnergyHP').value=r.peakEnergy;$('bt3Demand').value=r.demand;$('bt3HoursElapsed').value=r.peakHours;$('bt3Target').value=r.target;renderBT3()}else{$('bt5Energy').value=r.total;renderBT5()}$('uploadMessage').textContent=`Lectura de curva aplicada al módulo ${tariff}.`}
 
 $('receiptFiles').addEventListener('change',event=>saveReceipts(event.target.files));$('curveFile').addEventListener('change',event=>event.target.files[0]&&importCurve(event.target.files[0]));

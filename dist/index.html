@@ -185,7 +185,7 @@
       </div>
       <div class="upload-grid">
         <article class="upload-card"><div class="upload-icon">PDF</div><div><h3>Adjuntar recibos eléctricos</h3><p>PDF, JPG o PNG. Máximo 10 MB por archivo.</p><label class="file-button">Seleccionar recibos<input id="receiptFiles" type="file" accept="application/pdf,image/jpeg,image/png" multiple></label></div></article>
-        <article class="upload-card"><div class="upload-icon curve-icon">CSV</div><div><h3>Cargar curva AC en kWh</h3><p>Columnas: fecha_hora y kWh. Acepta coma o punto y coma.</p><label class="file-button">Seleccionar curva<input id="curveFile" type="file" accept=".csv,text/csv"></label></div></article>
+        <article class="upload-card"><div class="upload-icon curve-icon">XLS</div><div><h3>Cargar curva AC en kWh</h3><p>Acepta Excel o CSV. Detecta Start Time y Energy Consumption per Hour aunque la tabla comience en la fila 4.</p><label class="file-button">Seleccionar curva<input id="curveFile" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"></label></div></article>
       </div>
       <div id="uploadMessage" class="upload-message" aria-live="polite"></div>
       <div class="attachment-list" id="receiptList"></div>
@@ -206,11 +206,12 @@
         <div class="chart-wrap curve-chart-wrap"><svg id="acCurveChart" viewBox="0 0 1000 300" role="img" aria-label="Curva de energía AC en kilovatios hora"></svg></div>
         <aside id="curveValidation" class="curve-validation"><span class="status-pill">Sin datos</span><h3>Validación pendiente</h3><p>Cargue un archivo CSV para evaluar el factor objetivo.</p></aside>
       </div>
-      <details class="csv-help"><summary>Ver formato CSV de ejemplo</summary><pre>fecha_hora;kWh&#10;2026-10-01 17:45;0.82&#10;2026-10-01 18:00;1.10&#10;2026-10-01 18:15;1.26</pre></details>
+      <details class="csv-help"><summary>Formatos reconocidos</summary><pre>Formato simple: fecha_hora;kWh&#10;Formato Excel del medidor: Start Time | Energy Consumption per Hour (kWh)&#10;Las filas Time range, Export time y notas se omiten automáticamente.</pre></details>
     </section>
   </main>
 
   <footer><span>Herramienta de apoyo operativo</span><span>Validar los resultados con el medidor y el recibo de la distribuidora.</span></footer>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
