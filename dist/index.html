@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Monitoreo y control mensual del factor de calificación tarifaria MT3">
-  <title>Control de Factor MT3</title>
+  <meta name="description" content="Monitoreo y control mensual de tarifas eléctricas MT3, BT3 y BT5B">
+  <title>Control Tarifario Eléctrico</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -14,12 +14,19 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">FC</span>
-      <div><strong>Control de Factor MT3</strong><small>Monitoreo mensual de energía en punta</small></div>
+      <div><strong>Control Tarifario Eléctrico</strong><small>Monitoreo mensual MT3 · BT3 · BT5B</small></div>
     </div>
     <button id="resetBtn" class="ghost-btn" type="button">Restaurar Combapata</button>
   </header>
 
   <main>
+    <nav class="tariff-tabs" aria-label="Opciones tarifarias">
+      <button class="tariff-tab active" data-tab="mt3Panel" type="button">MT3</button>
+      <button class="tariff-tab" data-tab="bt3Panel" type="button">BT3</button>
+      <button class="tariff-tab" data-tab="bt5bPanel" type="button">BT5B</button>
+    </nav>
+
+    <section id="mt3Panel" class="tab-panel active">
     <section class="hero-grid">
       <div class="intro">
         <p class="eyebrow">Suministro monitoreado</p>
@@ -104,6 +111,71 @@
     <section class="panel log-panel">
       <div class="panel-title"><div><p class="eyebrow">Seguimiento</p><h2>Historial guardado</h2></div><button id="clearHistoryBtn" class="text-btn" type="button">Limpiar historial</button></div>
       <div class="history-wrap"><table><thead><tr><th>Fecha</th><th>Periodo</th><th>Energía HP</th><th>Demanda</th><th>Factor proyectado</th><th>Estado</th></tr></thead><tbody id="historyRows"></tbody></table></div>
+    </section>
+    </section>
+
+    <section id="bt3Panel" class="tab-panel" hidden>
+      <section class="tariff-hero bt3-hero">
+        <div><p class="eyebrow">Baja tensión · doble medición 2E1P</p><h1>Control BT3</h1><p>Proyecta el factor de calificación y recibe acciones para mantener la condición de usuario fuera de punta.</p></div>
+        <div class="tariff-score"><span>Factor proyectado</span><strong id="bt3Factor">0,00</strong><small>Meta: <b id="bt3TargetLabel">0,45</b></small></div>
+      </section>
+      <section class="metric-grid bt-metrics">
+        <article class="metric"><span>Energía HP proyectada</span><strong id="bt3ProjectedEnergy">0,00 kWh</strong><small id="bt3EnergyLimit">Límite: —</small></article>
+        <article class="metric"><span>Reducción necesaria</span><strong id="bt3Reduction">0,00 kWh</strong><small>Antes del cierre mensual</small></article>
+        <article class="metric"><span>Descarga diaria</span><strong id="bt3Daily">0,00 kWh</strong><small>Aplicar solamente en HP</small></article>
+        <article class="metric"><span>Estado</span><strong id="bt3State">—</strong><small id="bt3Trend">Esperando datos</small></article>
+      </section>
+      <section class="workspace-grid">
+        <article class="panel inputs-panel">
+          <div class="panel-title"><div><p class="eyebrow">Datos BT3</p><h2>Lectura y meta mensual</h2></div><button id="bt3Save" class="primary-btn" type="button">Guardar BT3</button></div>
+          <div class="field-grid">
+            <label>Suministro<input id="bt3Site" type="text" value="Nuevo suministro BT3"></label>
+            <label>Periodo<input id="bt3Period" type="month"></label>
+            <label>Energía HP acumulada (kWh)<input id="bt3EnergyHP" type="number" min="0" step="0.01" value="180"></label>
+            <label>Máxima demanda (kW)<input id="bt3Demand" type="number" min="0.01" step="0.01" value="5"></label>
+            <label>Horas punta transcurridas<input id="bt3HoursElapsed" type="number" min="1" step="1" value="75"></label>
+            <label>Horas punta del mes<input id="bt3HoursMonth" type="number" min="1" step="1" value="125"></label>
+            <label>Días punta restantes<input id="bt3DaysRemaining" type="number" min="0" step="1" value="10"></label>
+            <label>Meta del factor<input id="bt3Target" type="number" min="0.01" max="0.49" step="0.01" value="0.45"></label>
+          </div>
+        </article>
+        <aside class="panel action-panel"><div class="panel-title"><div><p class="eyebrow">Motor BT3</p><h2>Acciones recomendadas</h2></div><span id="bt3ActionCount" class="counter">0</span></div><div id="bt3Actions" class="actions-list" aria-live="polite"></div></aside>
+      </section>
+      <section class="panel forecast-panel tariff-note"><div><p class="eyebrow">Criterio aplicado</p><h2>BT3 también utiliza calificación de potencia</h2><p>El control usa <b>FC = EHP ÷ (NHP × MD)</b>. Los importes económicos deben actualizarse con el pliego vigente de la empresa distribuidora.</p></div><a href="https://www.osinergmin.gob.pe/Tarifas/Electricidad/PliegoTarifario?Id=170000" target="_blank" rel="noopener">Consultar pliego OSINERGMIN ↗</a></section>
+    </section>
+
+    <section id="bt5bPanel" class="tab-panel" hidden>
+      <section class="tariff-hero bt5b-hero">
+        <div><p class="eyebrow">Baja tensión · simple medición 1E</p><h1>Control BT5B</h1><p>Supervisa el consumo mensual, proyecta el recibo y evita superar el presupuesto o el umbral configurado.</p></div>
+        <div class="tariff-score"><span>Costo proyectado</span><strong id="bt5Cost">S/ 0,00</strong><small id="bt5CostState">Sin evaluación</small></div>
+      </section>
+      <section class="metric-grid bt-metrics">
+        <article class="metric"><span>Consumo proyectado</span><strong id="bt5Projected">0,00 kWh</strong><small id="bt5ConsumptionState">Meta: —</small></article>
+        <article class="metric"><span>Margen de consumo</span><strong id="bt5Margin">0,00 kWh</strong><small>Respecto de la meta</small></article>
+        <article class="metric"><span>Promedio diario permitido</span><strong id="bt5DailyLimit">0,00 kWh</strong><small>Para los días restantes</small></article>
+        <article class="metric"><span>Ahorro requerido</span><strong id="bt5Reduction">0,00 kWh</strong><small>Para cerrar dentro de la meta</small></article>
+      </section>
+      <section class="workspace-grid">
+        <article class="panel inputs-panel">
+          <div class="panel-title"><div><p class="eyebrow">Datos BT5B</p><h2>Consumo y presupuesto</h2></div><button id="bt5Save" class="primary-btn" type="button">Guardar BT5B</button></div>
+          <div class="field-grid">
+            <label>Suministro<input id="bt5Site" type="text" value="Nuevo suministro BT5B"></label>
+            <label>Periodo<input id="bt5Period" type="month"></label>
+            <label>Tipo de usuario<select id="bt5UserType"><option value="nonResidential">No residencial</option><option value="residential">Residencial</option></select></label>
+            <label>Consumo acumulado (kWh)<input id="bt5Energy" type="number" min="0" step="0.01" value="220"></label>
+            <label>Días transcurridos<input id="bt5DaysElapsed" type="number" min="1" max="31" step="1" value="20"></label>
+            <label>Días del periodo<input id="bt5DaysMonth" type="number" min="1" max="31" step="1" value="30"></label>
+            <label>Meta de consumo (kWh)<input id="bt5Target" type="number" min="1" step="1" value="300"></label>
+            <label>Presupuesto mensual (S/)<input id="bt5Budget" type="number" min="0" step="1" value="300"></label>
+            <label>Cargo fijo (S/mes)<input id="bt5Fixed" type="number" min="0" step="0.01" value="5.10"></label>
+            <label>Energía activa (S/kWh)<input id="bt5Rate" type="number" min="0" step="0.0001" value="0.8824"></label>
+            <label>Otros cargos antes de IGV (S/)<input id="bt5Other" type="number" min="0" step="0.01" value="0"></label>
+            <label>IGV<input id="bt5Tax" type="number" min="0" max="1" step="0.01" value="0.18"></label>
+          </div>
+        </article>
+        <aside class="panel action-panel"><div class="panel-title"><div><p class="eyebrow">Motor BT5B</p><h2>Avisos de consumo</h2></div><span id="bt5ActionCount" class="counter">0</span></div><div id="bt5Actions" class="actions-list" aria-live="polite"></div></aside>
+      </section>
+      <section class="panel forecast-panel tariff-note"><div><p class="eyebrow">Diferencia importante</p><h2>BT5B no usa factor de calificación</h2><p>Esta opción tiene medición simple de energía. El módulo controla kWh y costo proyectado; los valores tarifarios quedan editables para actualizarlos con el pliego vigente.</p></div><a href="https://www.osinergmin.gob.pe/Tarifas/Electricidad/PliegoTarifario?Id=170000" target="_blank" rel="noopener">Consultar pliego OSINERGMIN ↗</a></section>
     </section>
   </main>
 

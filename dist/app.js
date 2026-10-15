@@ -79,3 +79,65 @@ function reset(){localStorage.removeItem('fc-settings');load({...defaults,period
 
 inputIds.forEach(id=>$(id).addEventListener('input',render));$('saveBtn').addEventListener('click',save);$('resetBtn').addEventListener('click',reset);$('clearHistoryBtn').addEventListener('click',()=>{localStorage.removeItem('fc-history');renderHistory()});
 const saved=JSON.parse(localStorage.getItem('fc-settings')||'null');load(saved||{...defaults,period:initialPeriod()});
+
+// Navegación entre opciones tarifarias
+document.querySelectorAll('.tariff-tab').forEach(button=>button.addEventListener('click',()=>{
+ document.querySelectorAll('.tariff-tab').forEach(item=>item.classList.toggle('active',item===button));
+ document.querySelectorAll('.tab-panel').forEach(panel=>{const active=panel.id===button.dataset.tab;panel.hidden=!active;panel.classList.toggle('active',active)});
+ localStorage.setItem('tariff-active-tab',button.dataset.tab);
+}));
+const activeTab=localStorage.getItem('tariff-active-tab');
+if(activeTab){const tab=document.querySelector(`[data-tab="${activeTab}"]`);if(tab)tab.click()}
+
+const bt3Ids=['bt3Site','bt3Period','bt3EnergyHP','bt3Demand','bt3HoursElapsed','bt3HoursMonth','bt3DaysRemaining','bt3Target'];
+const bt5Ids=['bt5Site','bt5Period','bt5UserType','bt5Energy','bt5DaysElapsed','bt5DaysMonth','bt5Target','bt5Budget','bt5Fixed','bt5Rate','bt5Other','bt5Tax'];
+const values=ids=>Object.fromEntries(ids.map(id=>[id,$(id).type==='number'?num(id):$(id).value]));
+const actionMarkup=items=>items.map(a=>`<div class="action ${a[0]}"><span class="action-icon">${a[1]}</span><div><b>${a[2]}</b><p>${a[3]}</p></div></div>`).join('');
+
+function calculateBT3(){
+ const d=values(bt3Ids),elapsed=Math.max(1,d.bt3HoursElapsed),total=Math.max(elapsed,d.bt3HoursMonth);
+ const projected=d.bt3EnergyHP/elapsed*total,targetEnergy=d.bt3Target*total*d.bt3Demand,fc=factor(projected,total,d.bt3Demand);
+ const required=Math.max(0,projected-targetEnergy),daily=d.bt3DaysRemaining?required/d.bt3DaysRemaining:required,status=stateFor(fc,d.bt3Target);
+ return {...d,projected,targetEnergy,fc,required,daily,status};
+}
+function renderBT3(){
+ const r=calculateBT3();
+ $('bt3Factor').textContent=nf(r.fc);$('bt3TargetLabel').textContent=nf(r.bt3Target);$('bt3ProjectedEnergy').textContent=`${nf(r.projected)} kWh`;
+ $('bt3EnergyLimit').textContent=`Límite: ${nf(r.targetEnergy)} kWh`;$('bt3Reduction').textContent=`${nf(r.required)} kWh`;$('bt3Daily').textContent=`${nf(r.daily)} kWh`;
+ $('bt3State').textContent=r.status.label;$('bt3State').className=r.status.cls;$('bt3Trend').textContent=r.fc>r.bt3Target?'Se requiere corrección':'Proyección bajo control';
+ const actions=[];
+ if(r.fc>=.5)actions.push(['danger','!','Evitar calificación presente en punta',`Reducir ${nf(r.required)} kWh en las horas punta restantes.`]);
+ else if(r.fc>r.bt3Target)actions.push(['warn','↓','Programar descarga',`Entregar ${nf(r.daily)} kWh por día punta para alcanzar un factor ${nf(r.bt3Target)}.`]);
+ else actions.push(['','✓','Mantener el plan',`La proyección conserva un margen de ${nf(Math.max(0,r.targetEnergy-r.projected))} kWh.`]);
+ actions.push(['','MD','Vigilar máxima demanda','Si cambia la demanda máxima, recalcular inmediatamente la meta de energía HP.']);
+ actions.push(['','5m','Validar durante punta','Revisar la lectura entre 18:00 y 23:00 y registrar cualquier desviación.']);
+ $('bt3ActionCount').textContent=actions.length;$('bt3Actions').innerHTML=actionMarkup(actions);
+}
+function saveBT3(){localStorage.setItem('bt3-settings',JSON.stringify(values(bt3Ids)));renderBT3();$('bt3Save').textContent='Guardado';setTimeout(()=>$('bt3Save').textContent='Guardar BT3',1200)}
+
+function calculateBT5(){
+ const d=values(bt5Ids),elapsed=Math.max(1,d.bt5DaysElapsed),total=Math.max(elapsed,d.bt5DaysMonth),remaining=Math.max(0,total-elapsed);
+ const projected=d.bt5Energy/elapsed*total,margin=d.bt5Target-projected,reduction=Math.max(0,-margin),dailyLimit=remaining?Math.max(0,(d.bt5Target-d.bt5Energy)/remaining):0;
+ const subtotal=d.bt5Fixed+projected*d.bt5Rate+d.bt5Other,cost=subtotal*(1+d.bt5Tax),overBudget=Math.max(0,cost-d.bt5Budget);
+ return {...d,projected,margin,reduction,dailyLimit,cost,overBudget,remaining};
+}
+function renderBT5(){
+ const r=calculateBT5(),consumptionClass=r.projected<=r.bt5Target?'good':r.projected<=r.bt5Target*1.1?'warn':'danger',costClass=r.cost<=r.bt5Budget?'good':r.cost<=r.bt5Budget*1.1?'warn':'danger';
+ $('bt5Cost').textContent=money(r.cost);$('bt5Cost').className=costClass;$('bt5CostState').textContent=r.cost<=r.bt5Budget?'Dentro del presupuesto':`Exceso estimado: ${money(r.overBudget)}`;
+ $('bt5Projected').textContent=`${nf(r.projected)} kWh`;$('bt5ConsumptionState').textContent=`Meta: ${nf(r.bt5Target)} kWh`;$('bt5Margin').textContent=`${r.margin>=0?'+':''}${nf(r.margin)} kWh`;
+ $('bt5DailyLimit').textContent=`${nf(r.dailyLimit)} kWh`;$('bt5Reduction').textContent=`${nf(r.reduction)} kWh`;
+ const actions=[];
+ if(r.projected>r.bt5Target)actions.push(['danger','↓','Reducir consumo diario',`La proyección supera la meta en ${nf(r.reduction)} kWh. Apagar o reprogramar cargas no esenciales.`]);
+ else actions.push(['','✓','Consumo dentro de meta',`Se dispone de ${nf(Math.max(0,r.margin))} kWh de margen proyectado.`]);
+ if(r.cost>r.bt5Budget)actions.push(['warn','S/','Ajustar presupuesto o consumo',`El recibo proyectado excede el presupuesto en ${money(r.overBudget)}.`]);
+ if(r.bt5UserType==='residential'&&r.projected>140)actions.push(['warn','140','Revisar tramo residencial','El consumo proyectado supera 140 kWh. Verificar el tratamiento FOSE y el precio aplicable del pliego.']);
+ actions.push(['','24h','Registrar lectura diaria',`Consumir como máximo ${nf(r.dailyLimit)} kWh por día durante los ${r.remaining} días restantes.`]);
+ $('bt5ActionCount').textContent=actions.length;$('bt5Actions').innerHTML=actionMarkup(actions);
+}
+function saveBT5(){localStorage.setItem('bt5-settings',JSON.stringify(values(bt5Ids)));renderBT5();$('bt5Save').textContent='Guardado';setTimeout(()=>$('bt5Save').textContent='Guardar BT5B',1200)}
+
+bt3Ids.forEach(id=>$(id).addEventListener('input',renderBT3));bt5Ids.forEach(id=>$(id).addEventListener('input',renderBT5));
+$('bt3Save').addEventListener('click',saveBT3);$('bt5Save').addEventListener('click',saveBT5);
+const bt3Saved=JSON.parse(localStorage.getItem('bt3-settings')||'null');if(bt3Saved)bt3Ids.forEach(id=>{if(bt3Saved[id]!==undefined)$(id).value=bt3Saved[id]});else $('bt3Period').value=initialPeriod();
+const bt5Saved=JSON.parse(localStorage.getItem('bt5-settings')||'null');if(bt5Saved)bt5Ids.forEach(id=>{if(bt5Saved[id]!==undefined)$(id).value=bt5Saved[id]});else $('bt5Period').value=initialPeriod();
+renderBT3();renderBT5();
