@@ -141,3 +141,70 @@ $('bt3Save').addEventListener('click',saveBT3);$('bt5Save').addEventListener('cl
 const bt3Saved=JSON.parse(localStorage.getItem('bt3-settings')||'null');if(bt3Saved)bt3Ids.forEach(id=>{if(bt3Saved[id]!==undefined)$(id).value=bt3Saved[id]});else $('bt3Period').value=initialPeriod();
 const bt5Saved=JSON.parse(localStorage.getItem('bt5-settings')||'null');if(bt5Saved)bt5Ids.forEach(id=>{if(bt5Saved[id]!==undefined)$(id).value=bt5Saved[id]});else $('bt5Period').value=initialPeriod();
 renderBT3();renderBT5();
+
+// Centro documental y análisis de curva AC
+let curveData=[];
+let curveSummary=null;
+const dbPromise=new Promise((resolve,reject)=>{
+ const request=indexedDB.open('control-tarifario-files',1);
+ request.onupgradeneeded=()=>{
+  const db=request.result;
+  if(!db.objectStoreNames.contains('receipts')){const store=db.createObjectStore('receipts',{keyPath:'id',autoIncrement:true});store.createIndex('tariff','tariff')}
+  if(!db.objectStoreNames.contains('curves'))db.createObjectStore('curves',{keyPath:'tariff'});
+ };
+ request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+});
+function dbAction(storeName,mode,work){return dbPromise.then(db=>new Promise((resolve,reject)=>{const tx=db.transaction(storeName,mode),store=tx.objectStore(storeName),request=work(store);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)}))}
+const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const selectedTariff=()=>$('dataTariff').value;
+function activeTarget(tariff){return tariff==='MT3'?num('targetFactor'):tariff==='BT3'?num('bt3Target'):num('curveTarget')||.45}
+function syncCurveTarget(){const tariff=selectedTariff();if(tariff==='MT3')$('curveTarget').value=num('targetFactor');if(tariff==='BT3')$('curveTarget').value=num('bt3Target')}
+
+async function saveReceipts(files){
+ const tariff=selectedTariff(),valid=[...files].filter(file=>file.size<=10*1024*1024&&['application/pdf','image/jpeg','image/png'].includes(file.type));
+ if(!valid.length){$('uploadMessage').textContent='No se encontraron archivos válidos o alguno supera 10 MB.';return}
+ for(const file of valid)await dbAction('receipts','readwrite',store=>store.add({tariff,name:file.name,type:file.type,size:file.size,createdAt:new Date().toISOString(),blob:file}));
+ $('uploadMessage').textContent=`${valid.length} recibo(s) guardado(s) para ${tariff}.`;await renderReceipts();$('receiptFiles').value='';
+}
+async function renderReceipts(){
+ const tariff=selectedTariff(),all=await dbAction('receipts','readonly',store=>store.getAll()),items=all.filter(item=>item.tariff===tariff);
+ $('receiptList').innerHTML=items.length?items.map(item=>`<div class="attachment"><a href="#" data-open-receipt="${item.id}">${safe(item.name)}</a><small>${nf(item.size/1024,0)} KB</small><button type="button" data-delete-receipt="${item.id}" aria-label="Eliminar ${safe(item.name)}">×</button></div>`).join(''):`<span class="empty">No hay recibos adjuntos para ${tariff}.</span>`;
+}
+async function openReceipt(id){const item=await dbAction('receipts','readonly',store=>store.get(Number(id)));if(!item)return;const url=URL.createObjectURL(item.blob),link=document.createElement('a');link.href=url;link.target='_blank';link.download=item.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+async function deleteReceipt(id){await dbAction('receipts','readwrite',store=>store.delete(Number(id)));await renderReceipts();$('uploadMessage').textContent='Recibo eliminado del almacenamiento local.'}
+
+function parseCurve(text){
+ const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(line=>line.trim());if(lines.length<2)throw new Error('El CSV no contiene datos.');
+ const delimiter=(lines[0].match(/;/g)||[]).length>=(lines[0].match(/,/g)||[]).length?';':',';
+ const headers=lines[0].split(delimiter).map(v=>v.trim().toLowerCase()),dateIndex=headers.findIndex(v=>/fecha|hora|timestamp|date/.test(v)),energyIndex=headers.findIndex(v=>/kwh|energ/.test(v));
+ if(dateIndex<0||energyIndex<0)throw new Error('Use encabezados fecha_hora y kWh.');
+ const points=lines.slice(1).map(line=>{const cols=line.split(delimiter),rawDate=(cols[dateIndex]||'').trim(),rawValue=(cols[energyIndex]||'').trim().replace(',','.');const date=new Date(rawDate.replace(' ','T')),value=Number(rawValue);return {date,value}}).filter(p=>!Number.isNaN(p.date.getTime())&&Number.isFinite(p.value)&&p.value>=0).sort((a,b)=>a.date-b.date);
+ if(points.length<2)throw new Error('Se requieren al menos dos registros válidos.');return points;
+}
+function inferInterval(points){const gaps=[];for(let i=1;i<Math.min(points.length,200);i++){const gap=(points[i].date-points[i-1].date)/60000;if(gap>0&&gap<=1440)gaps.push(gap)}return gaps.length?gaps.sort((a,b)=>a-b)[Math.floor(gaps.length/2)]:num('curveInterval')}
+function summarizeCurve(){
+ if(!curveData.length)return null;const inferred=inferInterval(curveData),interval=inferred||Math.max(1,num('curveInterval')),hours=interval/60,start=num('peakStart'),end=num('peakEnd');
+ const peakPoints=curveData.filter(p=>{const h=p.date.getHours()+p.date.getMinutes()/60;return start<end?h>=start&&h<end:h>=start||h<end});
+ const total=curveData.reduce((sum,p)=>sum+p.value,0),peakEnergy=peakPoints.reduce((sum,p)=>sum+p.value,0),peakHours=peakPoints.length*hours,demand=Math.max(...curveData.map(p=>p.value/hours)),fc=factor(peakEnergy,peakHours,demand),target=num('curveTarget')||activeTarget(selectedTariff());
+ return {interval,total,peakEnergy,peakHours,demand,fc,target,status:stateFor(fc,target),points:curveData.length};
+}
+function drawACChart(){
+ const svg=$('acCurveChart'),W=1000,H=300,p=44;if(!curveData.length){svg.innerHTML='<text x="500" y="150" text-anchor="middle" fill="#65736f">Cargue una curva CSV para visualizar el suministro</text>';return}
+ const step=Math.max(1,Math.ceil(curveData.length/500)),data=curveData.filter((_,i)=>i%step===0||i===curveData.length-1),max=Math.max(...data.map(v=>v.value),.01),x=i=>p+i*(W-2*p)/Math.max(1,data.length-1),y=v=>H-p-v/max*(H-2*p),path=data.map((v,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(v.value).toFixed(1)}`).join(' ');
+ svg.innerHTML=`<line x1="${p}" y1="${H-p}" x2="${W-p}" y2="${H-p}" stroke="#cfdad5"/><line x1="${p}" y1="${p}" x2="${p}" y2="${H-p}" stroke="#cfdad5"/><path d="${path}" fill="none" stroke="#0f766e" stroke-width="3"/><path d="${path} L ${W-p} ${H-p} L ${p} ${H-p} Z" fill="rgba(57,168,142,.10)"/><text x="4" y="${p+4}" fill="#65736f" font-size="12">${nf(max)} kWh</text><text x="${p}" y="${H-10}" fill="#65736f" font-size="12">${data[0].date.toLocaleString('es-PE')}</text><text x="${W-p}" y="${H-10}" text-anchor="end" fill="#65736f" font-size="12">${data[data.length-1].date.toLocaleString('es-PE')}</text>`;
+}
+function renderCurve(){
+ curveSummary=summarizeCurve();drawACChart();$('applyCurveBtn').disabled=!curveSummary;
+ if(!curveSummary){['curveTotal','curvePeakEnergy','curveDemand','curveFactor'].forEach(id=>$(id).textContent='—');$('curvePoints').textContent='Sin curva cargada';return}
+ const r=curveSummary,referential=selectedTariff()==='BT5B';$('curveInterval').value=nf(r.interval,0);$('curveTotal').textContent=`${nf(r.total)} kWh`;$('curvePoints').textContent=`${r.points} intervalos analizados`;$('curvePeakEnergy').textContent=`${nf(r.peakEnergy)} kWh`;$('curvePeakHours').textContent=`${nf(r.peakHours)} horas dentro de HP`;$('curveDemand').textContent=`${nf(r.demand)} kW`;$('curveFactor').textContent=nf(r.fc);$('curveFactor').className=r.status.cls;$('curveFactorStatus').textContent=`Objetivo: ${nf(r.target)}${referential?' · referencial':''}`;
+ const ok=r.fc<=r.target,box=$('curveValidation');box.className=`curve-validation ${ok?'good':r.status.cls}`;box.innerHTML=`<span class="status-pill ${ok?'good':r.status.cls}">${ok?'Objetivo validado':'Requiere acción'}</span><h3>${ok?'La curva cumple la meta':'El factor supera la meta'}</h3><p>${referential?'En BT5B este factor es un indicador operativo y no determina la facturación. ':''}${ok?`Existe un margen de ${nf(r.target-r.fc)}.`:`Reduzca energía en punta o aumente el desplazamiento de carga. Diferencia: ${nf(r.fc-r.target)}.`}</p>`;
+}
+async function loadCurve(){const record=await dbAction('curves','readonly',store=>store.get(selectedTariff()));curveData=(record?.points||[]).map(p=>({date:new Date(p.date),value:p.value}));if(record?.target)$('curveTarget').value=record.target;renderCurve()}
+async function importCurve(file){try{curveData=parseCurve(await file.text());const interval=inferInterval(curveData);$('curveInterval').value=nf(interval,0);const points=curveData.map(p=>({date:p.date.toISOString(),value:p.value}));await dbAction('curves','readwrite',store=>store.put({tariff:selectedTariff(),name:file.name,target:num('curveTarget'),points,updatedAt:new Date().toISOString()}));$('uploadMessage').textContent=`Curva ${file.name} cargada: ${points.length} intervalos.`;renderCurve()}catch(error){$('uploadMessage').textContent=error.message}finally{$('curveFile').value=''}}
+function applyCurve(){if(!curveSummary)return;const r=curveSummary,tariff=selectedTariff();if(tariff==='MT3'){$('energyHP').value=r.peakEnergy;$('maxDemand').value=r.demand;$('hoursElapsed').value=r.peakHours;$('targetFactor').value=r.target;render()}else if(tariff==='BT3'){$('bt3EnergyHP').value=r.peakEnergy;$('bt3Demand').value=r.demand;$('bt3HoursElapsed').value=r.peakHours;$('bt3Target').value=r.target;renderBT3()}else{$('bt5Energy').value=r.total;renderBT5()}$('uploadMessage').textContent=`Lectura de curva aplicada al módulo ${tariff}.`}
+
+$('receiptFiles').addEventListener('change',event=>saveReceipts(event.target.files));$('curveFile').addEventListener('change',event=>event.target.files[0]&&importCurve(event.target.files[0]));
+$('receiptList').addEventListener('click',event=>{const open=event.target.closest('[data-open-receipt]'),del=event.target.closest('[data-delete-receipt]');if(open){event.preventDefault();openReceipt(open.dataset.openReceipt)}if(del)deleteReceipt(del.dataset.deleteReceipt)});
+$('dataTariff').addEventListener('change',async()=>{syncCurveTarget();await Promise.all([renderReceipts(),loadCurve()])});['curveInterval','peakStart','peakEnd','curveTarget'].forEach(id=>$(id).addEventListener('input',renderCurve));$('applyCurveBtn').addEventListener('click',applyCurve);
+document.querySelectorAll('.tariff-tab').forEach(button=>button.addEventListener('click',()=>{const tariff=button.textContent.trim();$('dataTariff').value=tariff;syncCurveTarget();renderReceipts();loadCurve()}));
+syncCurveTarget();renderReceipts();loadCurve();

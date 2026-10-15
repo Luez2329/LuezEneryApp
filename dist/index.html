@@ -177,6 +177,37 @@
       </section>
       <section class="panel forecast-panel tariff-note"><div><p class="eyebrow">Diferencia importante</p><h2>BT5B no usa factor de calificación</h2><p>Esta opción tiene medición simple de energía. El módulo controla kWh y costo proyectado; los valores tarifarios quedan editables para actualizarlos con el pliego vigente.</p></div><a href="https://www.osinergmin.gob.pe/Tarifas/Electricidad/PliegoTarifario?Id=170000" target="_blank" rel="noopener">Consultar pliego OSINERGMIN ↗</a></section>
     </section>
+
+    <section class="panel data-center">
+      <div class="panel-title data-center-title">
+        <div><p class="eyebrow">Documentos y medición</p><h2>Recibos y curva de suministro AC</h2><p>Los archivos quedan guardados únicamente en este navegador.</p></div>
+        <label class="compact-field">Tarifa asociada<select id="dataTariff"><option value="MT3">MT3</option><option value="BT3">BT3</option><option value="BT5B">BT5B</option></select></label>
+      </div>
+      <div class="upload-grid">
+        <article class="upload-card"><div class="upload-icon">PDF</div><div><h3>Adjuntar recibos eléctricos</h3><p>PDF, JPG o PNG. Máximo 10 MB por archivo.</p><label class="file-button">Seleccionar recibos<input id="receiptFiles" type="file" accept="application/pdf,image/jpeg,image/png" multiple></label></div></article>
+        <article class="upload-card"><div class="upload-icon curve-icon">CSV</div><div><h3>Cargar curva AC en kWh</h3><p>Columnas: fecha_hora y kWh. Acepta coma o punto y coma.</p><label class="file-button">Seleccionar curva<input id="curveFile" type="file" accept=".csv,text/csv"></label></div></article>
+      </div>
+      <div id="uploadMessage" class="upload-message" aria-live="polite"></div>
+      <div class="attachment-list" id="receiptList"></div>
+      <div class="curve-controls">
+        <label>Intervalo de respaldo (min)<input id="curveInterval" type="number" min="1" step="1" value="15"></label>
+        <label>Inicio hora punta<input id="peakStart" type="number" min="0" max="23" step="1" value="18"></label>
+        <label>Fin hora punta<input id="peakEnd" type="number" min="1" max="24" step="1" value="23"></label>
+        <label>Factor objetivo<input id="curveTarget" type="number" min="0.01" max="1" step="0.01" value="0.45"></label>
+        <button id="applyCurveBtn" class="primary-btn" type="button" disabled>Aplicar lectura a la tarifa</button>
+      </div>
+      <section class="metric-grid curve-metrics">
+        <article class="metric"><span>Energía AC total</span><strong id="curveTotal">—</strong><small id="curvePoints">Sin curva cargada</small></article>
+        <article class="metric"><span>Energía en HP</span><strong id="curvePeakEnergy">—</strong><small id="curvePeakHours">Horario 18:00–23:00</small></article>
+        <article class="metric"><span>Máxima demanda estimada</span><strong id="curveDemand">—</strong><small>Calculada por intervalo</small></article>
+        <article class="metric"><span>Factor calculado</span><strong id="curveFactor">—</strong><small id="curveFactorStatus">Esperando datos</small></article>
+      </section>
+      <div class="curve-layout">
+        <div class="chart-wrap curve-chart-wrap"><svg id="acCurveChart" viewBox="0 0 1000 300" role="img" aria-label="Curva de energía AC en kilovatios hora"></svg></div>
+        <aside id="curveValidation" class="curve-validation"><span class="status-pill">Sin datos</span><h3>Validación pendiente</h3><p>Cargue un archivo CSV para evaluar el factor objetivo.</p></aside>
+      </div>
+      <details class="csv-help"><summary>Ver formato CSV de ejemplo</summary><pre>fecha_hora;kWh&#10;2026-10-01 17:45;0.82&#10;2026-10-01 18:00;1.10&#10;2026-10-01 18:15;1.26</pre></details>
+    </section>
   </main>
 
   <footer><span>Herramienta de apoyo operativo</span><span>Validar los resultados con el medidor y el recibo de la distribuidora.</span></footer>
