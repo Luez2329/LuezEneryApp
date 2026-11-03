@@ -1,0 +1,8 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "luez-energy-solar",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-03",
+  "workers_dev": true,
+  "preview_urls": true
+}
