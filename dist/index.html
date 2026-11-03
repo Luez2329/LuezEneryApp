@@ -318,12 +318,14 @@
         <article class="metric"><span>Energía AC después mensualizada</span><strong id="curveTotal">—</strong><small id="curvePoints">Sin curva cargada</small></article>
         <article class="metric"><span>Reducción AC</span><strong id="curveReduction">—</strong><small id="curveReductionStatus">Requiere ambas curvas AC</small></article>
         <article class="metric"><span>Generación fotovoltaica mensualizada</span><strong id="pvCurveTotal">—</strong><small id="pvCurvePoints">Sin curva cargada</small></article>
+        <article class="metric"><span>Suministro AC proyectado</span><strong id="projectedACTotal">—</strong><small id="projectedACStatus">Requiere curva AC y generación FV</small></article>
+        <article class="metric"><span>Consumo neto proyectado</span><strong id="projectedNetTotal">—</strong><small id="projectedNetStatus">AC proyectada − generación FV</small></article>
         <article class="metric factor-only"><span>Energía mensualizada en HP</span><strong id="curvePeakEnergy">—</strong><small id="curvePeakHours">Horario 18:00–23:00</small></article>
         <article class="metric factor-only"><span>Máxima demanda después</span><strong id="curveDemand">—</strong><small>Calculada por intervalo</small></article>
         <article class="metric factor-only"><span>Factor calculado</span><strong id="curveFactor">—</strong><small id="curveFactorStatus">Esperando datos</small></article>
       </section>
       <div class="curve-layout">
-        <div class="chart-wrap curve-chart-wrap"><svg id="acCurveChart" viewBox="0 0 1000 330" role="img" aria-label="Comparación de las curvas AC antes, AC después y generación fotovoltaica"></svg></div>
+        <div><div class="chart-wrap curve-chart-wrap"><svg id="acCurveChart" viewBox="0 0 1000 330" role="img" aria-label="Comparación de suministro AC proyectado, generación fotovoltaica y consumo neto"></svg></div><p id="solarContrastNote" class="battery-chart-note">Cargue la curva AC y genere o cargue la curva fotovoltaica para proyectarlas sobre el mismo periodo.</p></div>
         <aside id="curveValidation" class="curve-validation"><span class="status-pill">Sin datos</span><h3>Validación pendiente</h3><p>Cargue un archivo CSV para evaluar el factor objetivo.</p></aside>
       </div>
       <section class="battery-planner factor-only" id="factorBatteryPlanner">
