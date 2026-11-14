@@ -275,6 +275,21 @@
         <div class="assessment-checks"><div id="assessmentCheckSite" class="assessment-check missing">○ Sitio y coordenadas</div><div id="assessmentCheckReceipts" class="assessment-check missing">○ Recibos declarados y cargados</div><div id="assessmentCheckCurve" class="assessment-check missing">○ Curva AC base</div><div id="assessmentCheckBattery" class="assessment-check missing">○ Baterías y carga</div></div>
         <div id="assessmentStatus" class="assessment-status">Complete los datos para habilitar el dimensionamiento.</div>
       </section>
+      <section class="selection-criteria" aria-labelledby="selectionCriteriaTitle">
+        <div class="panel-title"><div><p class="eyebrow">Selección del sitio</p><h2 id="selectionCriteriaTitle">Criterios para instalar paneles y ciclar baterías</h2><p>Compare la potencia de diseño y el espacio disponible con la carga actual del sitio.</p></div><span id="selectionCriteriaBadge" class="status-pill warn">Pendiente</span></div>
+        <div class="selection-criteria-fields">
+          <label>Potencia FV de diseño (kWp)<input id="selectionPvKw" type="number" min="0" step="0.01" placeholder="Ej. 6"></label>
+          <label>Espacio habilitado (m²)<input id="selectionAreaM2" type="number" min="0" step="0.1" placeholder="Ej. 40"></label>
+          <label>Potencia FV para recarga de baterías (kW)<input id="selectionRechargeKw" type="number" min="0" step="0.01" placeholder="Ej. 1.5"></label>
+          <label>Área por panel de 630 Wp (m²)<input id="selectionPanelAreaM2" type="number" min="0.1" step="0.1" value="3"></label>
+        </div>
+        <div class="selection-criteria-list">
+          <div id="selectionCriterion1" class="assessment-check missing">○ 1. Potencia FV de diseño mayor o igual que la carga del sitio.</div>
+          <div id="selectionCriterion2" class="assessment-check missing">○ 2. Espacio habilitado para instalar paneles.</div>
+          <div id="selectionCriterion3" class="assessment-check missing">○ 3. Espacio para paneles que cubran la carga del sitio y la recarga de baterías.</div>
+        </div>
+        <p id="selectionCriteriaSummary" class="assessment-status">Complete los datos para validar los criterios de selección.</p>
+      </section>
       <section class="workflow-gate" aria-live="polite">
         <div class="workflow-head"><div><p class="eyebrow" style="color:#dff39c">Ruta automática de evaluación</p><h3 id="workflowDecision">Validando tarifa…</h3><p id="workflowExplanation">Seleccione o cargue un recibo para definir la ruta de análisis.</p></div><span id="workflowBadge" class="status-pill">Pendiente</span></div>
         <div class="workflow-steps">
@@ -284,7 +299,7 @@
           <article class="workflow-step" id="workflowStep4"><span class="workflow-number">4</span><b>Cerrar el ciclo con FV</b><small>Recargar sin superar el límite de potencia admitido desde la red.</small></article>
         </div>
       </section>
-      <section id="bt5bEnergyPath" class="bt5b-path is-hidden"><h3>BT5B: evaluación por consumo, costo y generación solar</h3><p>Esta tarifa no utiliza factor de calificación. Con los datos de entrada completos, la aplicación consulta la radiación de la ubicación y genera automáticamente una curva fotovoltaica horaria mensual.</p>
+      <section id="bt5bEnergyPath" class="bt5b-path is-hidden"><h3>BT5B: evaluación por consumo, costo y generación solar</h3><p>Esta tarifa no utiliza factor de calificación. La aplicación genera una curva fotovoltaica horaria para el mismo periodo de la curva AC, incluso si cubre un año.</p>
         <section class="solar-prediction" aria-labelledby="bt5bSolarTitle">
           <div class="solar-prediction-head"><div><h4 id="bt5bSolarTitle">Predicción solar por ubicación</h4><p>Estimación climatológica con radiación horizontal de PVGIS. No sustituye un pronóstico meteorológico operativo.</p></div><button id="bt5bSolarRefresh" class="primary-btn" type="button">Actualizar radiación</button></div>
           <div class="solar-prediction-inputs">
@@ -293,8 +308,8 @@
           </div>
           <div class="solar-prediction-metrics">
             <div><span>Radiación promedio diaria</span><strong id="bt5bSolarDailyRadiation">—</strong><small>kWh/m²/día</small></div>
-            <div><span>Radiación del mes típico</span><strong id="bt5bSolarMonthlyRadiation">—</strong><small>kWh/m²/mes</small></div>
-            <div><span>Generación FV estimada</span><strong id="bt5bSolarMonthlyEnergy">—</strong><small>kWh/mes</small></div>
+            <div><span id="bt5bSolarRadiationLabel">Radiación del periodo</span><strong id="bt5bSolarMonthlyRadiation">—</strong><small id="bt5bSolarRadiationUnit">kWh/m²/periodo</small></div>
+            <div><span>Generación FV estimada</span><strong id="bt5bSolarMonthlyEnergy">—</strong><small id="bt5bSolarEnergyUnit">kWh/periodo</small></div>
           </div>
           <div id="bt5bSolarStatus" class="battery-action">Complete los datos de entrada para consultar la radiación solar.</div>
           <p class="solar-source">Fuente: <a href="https://re.jrc.ec.europa.eu/pvg_tools/es/" target="_blank" rel="noopener">PVGIS · Comisión Europea</a>. Perfil horario construido con un año meteorológico típico.</p>
@@ -307,7 +322,7 @@
       </div>
       <div id="uploadMessage" class="upload-message" aria-live="polite"></div>
       <div class="curve-controls">
-        <label>Periodo de la muestra<select id="curvePeriodicity"><option value="weekly">Semanal (× 4,33)</option><option value="biweekly">Quincenal (× 2)</option><option value="monthly" selected>Mensual (× 1)</option></select></label>
+        <label>Periodo de la muestra<select id="curvePeriodicity"><option value="weekly">Semanal (× 4,33)</option><option value="biweekly">Quincenal (× 2)</option><option value="monthly" selected>Mensual (× 1)</option><option value="annual">Anual (sin multiplicar)</option></select></label>
         <label>Intervalo de respaldo (min)<input id="curveInterval" type="number" min="1" step="1" value="15"></label>
         <label class="factor-only">Inicio hora punta<input id="peakStart" type="number" min="0" max="23" step="1" value="18"></label>
         <label class="factor-only">Fin hora punta<input id="peakEnd" type="number" min="1" max="24" step="1" value="23"></label>
@@ -315,10 +330,10 @@
         <button id="applyCurveBtn" class="primary-btn" type="button" disabled>Aplicar lectura a la tarifa</button>
       </div>
       <section class="metric-grid curve-metrics">
-        <article class="metric"><span>Energía AC antes mensualizada</span><strong id="curveBeforeTotal">—</strong><small id="curveBeforePoints">Sin curva cargada</small></article>
-        <article class="metric"><span>Energía AC después mensualizada</span><strong id="curveTotal">—</strong><small id="curvePoints">Sin curva cargada</small></article>
+        <article class="metric"><span id="curveBeforeTotalLabel">Energía AC antes mensualizada</span><strong id="curveBeforeTotal">—</strong><small id="curveBeforePoints">Sin curva cargada</small></article>
+        <article class="metric"><span id="curveTotalLabel">Energía AC después mensualizada</span><strong id="curveTotal">—</strong><small id="curvePoints">Sin curva cargada</small></article>
         <article class="metric"><span>Reducción AC</span><strong id="curveReduction">—</strong><small id="curveReductionStatus">Requiere ambas curvas AC</small></article>
-        <article class="metric"><span>Generación fotovoltaica mensualizada</span><strong id="pvCurveTotal">—</strong><small id="pvCurvePoints">Sin curva cargada</small></article>
+        <article class="metric"><span id="pvCurveTotalLabel">Generación fotovoltaica mensualizada</span><strong id="pvCurveTotal">—</strong><small id="pvCurvePoints">Sin curva cargada</small></article>
         <article class="metric"><span>Suministro AC proyectado</span><strong id="projectedACTotal">—</strong><small id="projectedACStatus">Requiere curva AC y generación FV</small></article>
         <article class="metric"><span>Consumo neto proyectado</span><strong id="projectedNetTotal">—</strong><small id="projectedNetStatus">AC proyectada − generación FV</small></article>
         <article class="metric factor-only"><span>Energía mensualizada en HP</span><strong id="curvePeakEnergy">—</strong><small id="curvePeakHours">Horario 18:00–23:00</small></article>
